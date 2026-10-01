@@ -1,0 +1,519 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;   /* verhindert Scrollen */
+    height: 100%;
+    width: 100%;
+}
+#fractalCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+}
+#cmOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+    pointer-events: auto;
+    z-index: 9000;
+}
+
+#cmOverlay.hidden {
+    display: none;
+}
+
+#cmCanvas {
+    width: 100%;
+    height: 50px;
+    border: 1px solid white;
+}
+
+#curveCanvas {
+    width: 100%;
+    height: 50px;
+    border: 1px solid white;
+}
+
+#cmKnobs {
+    display: flex;
+    flex-direction: row;   /* nebeneinander */
+    align-items: flex-start;
+    gap: 10px;             /* HIER kommt der Abstand */
+}
+
+#primCmap {
+    display: inline-flex;   /* WICHTIG */
+    flex-direction: column; /* damit die knob-rows untereinander bleiben */
+    gap: 10px;
+}
+
+#primCmap, #secCmap {
+    background: #111;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #0abaff55;
+    box-shadow: 0 0 20px #0abaff22;
+}
+
+
+#channels {
+    display: inline-flex;   /* WICHTIG */
+    flex-direction: row; /* damit die knob-rows untereinander bleiben */
+    gap: 10px;
+
+}
+
+.cmap-row {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+}
+
+.channel-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #111;
+    padding: 16px;
+    border-radius: 10px;
+    flex: 1; /* Panels wachsen gleichmäßig */
+}
+
+/* Farbakzente */
+.channel-red {
+    border: 1px solid #ff4444aa;
+    box-shadow: 0 0 20px #ff444422;
+}
+
+.channel-green {
+    border: 1px solid #44ff44aa;
+    box-shadow: 0 0 20px #44ff4422;
+}
+
+.channel-blue {
+    border: 1px solid #4488ffaa;
+    box-shadow: 0 0 20px #4488ff22;
+}
+
+.channel-all {
+    border: 1px solid #babaff88;   /* NEU */
+    box-shadow: 0 0 20px #babaffff; /* NEU – harmonisch */
+}
+
+
+.knob-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.knob-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.mod-toggle {
+    margin-top: 6px;
+    padding: 4px 10px;
+    font-size: 10px;
+    border-radius: 6px;
+    background: #333;
+    color: #fff;
+    border: 1px solid #666;
+    cursor: pointer;
+}
+
+.mod-toggle.active {
+    background: #0abaff;
+    border-color: #0abaff;
+    color: black;
+}
+
+/* Polished Serum Hover Label */
+.knob-label {
+    position: absolute;
+    top: -26px;
+    left: 50%;
+    transform: translateX(-50%) translateY(6px);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #cceeff;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+
+    /* Polish */
+    padding: 2px 6px; /* WICHTIG */
+    background: #000a; /* WICHTIG */
+    border: 1px solid #0abaff55; /* Serum-Style */
+    border-radius: 4px; /* WICHTIG */
+
+    transition:
+        opacity 0.25s ease,
+        transform 0.25s ease,
+        text-shadow 0.25s ease;
+    transition-delay: 40ms; /* Micro‑Delay */
+}
+
+/* Hover + Drag */
+.knob-wrapper:hover .knob-label,
+.knob-wrapper.dragging .knob-label {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    animation: labelPulse 0.35s ease-out;
+}
+
+/* Glow‑Pulse */
+@keyframes labelPulse {
+    0%   { text-shadow: 0 0 0px #0abaff00; }
+    40%  { text-shadow: 0 0 10px #0abaffaa; }
+    100% { text-shadow: 0 0 6px #0abaff55; }
+}
+
+.knob-row {
+    display: flex;
+    gap: 10px;
+}
+
+.knob-row input[type="range"] {
+    width: 100%;
+}
+
+.knob {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #3a3a3a, #1a1a1a);
+    border: 2px solid #0abaff;
+    box-shadow:
+        0 0 10px #0abaff55,
+        inset 0 0 10px #000;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.05s linear, box-shadow 0.02s ease;
+}
+
+.knob:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 20px #0abaffaa;
+}
+
+/* Marker */
+.knob::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 4px;
+    height: 14px;
+    background: #0abaff;
+    border-radius: 2px;
+    transform: translateX(-50%);
+}
+
+
+
+#modOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,.0);
+    backdrop-filter: blur(1px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+#modOverlay.hidden {
+    display: none;
+}
+
+#modUIContainer {
+    position: relative;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    padding: 20px;
+    border-radius: 12px;
+    min-width: 380px;
+    max-width: 520px;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 0 25px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    font-family: sans-serif;
+}
+.mod-slot {
+    background: #262626;
+    padding: 14px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border: 1px solid #333;
+}
+
+.mod-slot label {
+    font-size: 13px;
+    color: #ccc;
+    margin-bottom: 4px;
+}
+
+.mod-slot input[type="range"] {
+    width: 100%;
+}
+
+.param-knobs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#modClose {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    padding: 8px 14px;
+    background: #444;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    z-index: 10000;
+}
+#modClose:hover {
+    background: #666;
+}
+
+button.polish {
+    font-family: Arial;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: .5px;
+}
+
+/* Gemeinsame Slider-Basis */
+.dual-slider input[type="range"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 30px;
+    margin: 0;
+    background: transparent; /* wichtig */
+}
+
+/* DUAL SLIDER */
+.dual-slider {
+    display: flex;
+    position: relative;
+    width: 100%;
+    height: 20px;
+}
+
+.dual-slider .track {
+    position: absolute;
+    left: 0px;
+    top: 6px;
+    width: 100%;
+    height: 8px;
+    background: #fcfcfc;
+    border-radius: 2px;
+}
+
+.dual-slider .range {
+    position: absolute;
+    top: 6px;
+    height: 8px;
+    background: #0af;
+    border-radius: 2px;
+}
+
+.dual-slider .thumb {
+    position: absolute;
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    transform: translateX(-50%);
+}
+
+.dual-slider .thumb.min {
+    background: #0af;
+}
+
+.dual-slider .thumb.max {
+    background: #fa0;
+}
+
+#presetSaveBtn {
+    float: right;
+}
+#presetPopup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 12000;
+}
+
+#presetPopup.hidden {
+    display: none;
+}
+
+#presetPopupInner {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 12px;
+    width: 300px;
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#presetList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    max-height: 50vh;      /* oder 30vh */
+    overflow-y: auto;       /* scrollen */
+    overflow-x: hidden;
+
+    border: 1px solid #333;
+    padding-right: 6px;     /* Platz für Scrollbar */
+}
+
+#presetList li {
+    padding: 8px;
+    background: #333;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+#presetList::-webkit-scrollbar {
+    width: 8px;
+}
+
+#presetList::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+#presetList::-webkit-scrollbar-track {
+    background: #222;
+}
+
+#alertPopup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20000;
+}
+#alertPopup.hidden {
+    display: none;
+}
+#alertPopupInner {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 12px;
+    color: #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#yesNoDialog {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 13000;
+}
+
+#yesNoDialog.hidden {
+    display: none;
+}
+
+#yesNoInner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #1a1a1a;
+    padding: 16px 20px;
+    border-radius: 10px;
+    color: #eee;
+}
+
+#yesNoMessage {
+    white-space: pre-line;
+    text-align: center; /* wichtig für \n */
+    margin-bottom: 12px;
+}
+#yesno-buttons {
+    display:flex;
+}
+.button {
+    display: inline-block;      /* verhindert Strecken */
+    padding: 6px 14px;
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;        /* kein automatischer Zeilenumbruch */
+    margin: 0 auto;
+    margin: 10px;             /* zentriert im Container */
+    transition: transform 0.05s ease;
+}
+.button:active {
+    transform: scale(0.95);
+}
+.button:hover {
+    background: #555;
+}
+.modsDiv {
+    display: flex;
+    flex-direction: column;
+    background: #444;
+}
+.centerdiv {
+    display: flex;
+    align-self: center;
+    gap: 20px;
+}
