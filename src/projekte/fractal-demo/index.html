@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Fractal Demo</title>
+
+    <!-- Editor CSS -->
+    <link id="editorCSS" rel="stylesheet" href="fractal.css">
+</head>
+
+<body>
+
+    <!-- MOD OVERLAY -->
+    <div id="modOverlay" class="hidden">
+        <div id="modUIContainer"></div>
+        <button id="modClose">Close</button>
+    </div>
+
+    <!-- FRACTAL CANVAS -->
+    <canvas id="fractalCanvas" width="1920" height="1080"></canvas>
+
+    <!-- EDITOR OVERLAY -->
+    <div id="cmOverlay" class="hidden">
+
+        <canvas id="cmCanvas"></canvas>
+        <canvas id="curveCanvas"></canvas>
+
+        <div id="cmKnobs">
+
+            <div id="primCmap" class="cmap-row">
+                <div id="channels">
+
+                    <!-- RED -->
+                    <div class="channel-panel channel-red">
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="amount-r" data-init="1"></div>
+                            <button class="mod-toggle" data-param="amount-r"></button>
+                            <div class="knob-label">Amount R</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="shape-r" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="shape-r"></button>
+                            <div class="knob-label">Pow G</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="pow-r" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="pow-r"></button>
+                            <div class="knob-label">Pow R</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="pos-r" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="pos-r"></button>
+                            <div class="knob-label">Pos R</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="mult-r" data-init=".2"></div>
+                            <button class="mod-toggle" data-param="mult-r"></button>
+                            <div class="knob-label">Mult R</div>
+                        </div>
+                    </div>
+
+                    <!-- GREEN -->
+                    <div class="channel-panel channel-green">
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="amount-g" data-init="1"></div>
+                            <button class="mod-toggle" data-param="amount-g"></button>
+                            <div class="knob-label">Amount G</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="shape-g" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="shape-g"></button>
+                            <div class="knob-label">Pow G</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="pow-g" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="pow-g"></button>
+                            <div class="knob-label">Pow G</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="pos-g" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="pos-g"></button>
+                            <div class="knob-label">Pos G</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="mult-g" data-init=".4"></div>
+                            <button class="mod-toggle" data-param="mult-g"></button>
+                            <div class="knob-label">Mult G</div>
+                        </div>
+                    </div>
+
+                    <!-- BLUE -->
+                    <div class="channel-panel channel-blue">
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="amount-b" data-init="1"></div>
+                            <button class="mod-toggle" data-param="amount-b"></button>
+                            <div class="knob-label">Amount B</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="shape-b" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="shape-b"></button>
+                            <div class="knob-label">Pow G</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="pow-b" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="pow-b"></button>
+                            <div class="knob-label">Pow B</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="pos-b" data-init=".5"></div>
+                            <button class="mod-toggle" data-param="pos-b"></button>
+                            <div class="knob-label">Pos B</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="mult-b" data-init=".6"></div>
+                            <button class="mod-toggle" data-param="mult-b"></button>
+                            <div class="knob-label">Mult B</div>
+                        </div>
+                    </div>
+
+                    <!-- ALL -->
+                    <div class="channel-panel channel-all">
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="phaseShift" data-init="0"></div>
+                            <button class="mod-toggle" data-param="phaseShift"></button>
+                            <div class="knob-label">phaseShift</div>
+                        </div>
+
+                        <div class="knob-wrapper">
+                            <div class="knob" data-param="hueShift" data-init="0"></div>
+                            <button class="mod-toggle" data-param="hueShift"></button>
+                            <div class="knob-label">hueShift</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <div id="presetPopup" class="hidden">
+        <div id="presetPopupInner">
+            <h2 id="presetPopupTitle"></h2>
+
+            <div id="presetSaveUI" class="hidden">
+                <input id="presetNameInput" placeholder="Preset-Name">
+                <button id="presetSaveBtn" class="button">Speichern</button>
+            </div>
+
+            <div id="presetLoadUI" class="hidden">
+                <ul id="presetList"></ul>
+            </div>
+
+            <button id="presetCloseBtn" class="button">Close</button>
+        </div>
+    </div>
+    <div id="alertPopup" class="hidden">
+        <div id="alertPopupInner">
+            <div id="alertMsg"></div>
+            <button id="alertBtn">Ok</button>
+        </div>
+    </div>
+    <div id="yesNoDialog" class="hidden">
+        <div id="yesNoInner">
+            <div id="yesNoMessage"></div>
+            <div class="yesno-buttons">
+                <button class="button" id="yesBtn">Yes</button>
+                <button class="button" id="noBtn">No</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+</body>
+
+</html>
