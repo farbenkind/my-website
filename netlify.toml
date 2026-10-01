@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Schöne URL für die Fraktal-Demo (Vite legt sie unter /src/projekte/fractal-demo/ ab)
+[[redirects]]
+  from = "/projekte/fractal-demo"
+  to = "/src/projekte/fractal-demo/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/projekte/fractal-demo/"
+  to = "/src/projekte/fractal-demo/index.html"
+  status = 200

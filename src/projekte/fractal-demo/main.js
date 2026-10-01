@@ -27,7 +27,12 @@ function clamp(x, min, max) {
 
 /////////////////  Webgui Settup
 const canvas = document.querySelector("canvas");
-const adapter = await navigator.gpu.requestAdapter();
+const adapter = navigator.gpu && await navigator.gpu.requestAdapter();
+if (!adapter) {
+    document.body.innerHTML = '<p style="color:#eee;background:#111;font-family:sans-serif;padding:2rem;margin:0;height:100vh">' +
+        'Dieser Browser unterstützt kein WebGPU. Bitte eine aktuelle Version von Chrome oder Edge verwenden.</p>';
+    throw new Error("WebGPU nicht verfügbar");
+}
 const device = await adapter.requestDevice();
 
 const context = canvas.getContext("webgpu");
@@ -1628,20 +1633,29 @@ import init, { update_audio, get_beats } from "./modcore.js";
 await init(); // einmalig
 
 
+// Audio im Hintergrund starten, damit das Fraktal nicht auf die Mikrofon-Freigabe warten muss
 const audioContext = new AudioContext();
-await audioContext.audioWorklet.addModule("pcm-processor.js");
+async function setupAudio() {
+    await audioContext.audioWorklet.addModule(new URL("./pcm-processor.js", import.meta.url));
 
-const pcmNode = new AudioWorkletNode(audioContext, "pcm-proc");
-const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-const mic = audioContext.createMediaStreamSource(stream);
-mic.connect(pcmNode);
-pcmNode.connect(audioContext.destination); // optional
+    const pcmNode = new AudioWorkletNode(audioContext, "pcm-proc");
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mic = audioContext.createMediaStreamSource(stream);
+    mic.connect(pcmNode);
+    pcmNode.connect(audioContext.destination); // optional
+    audioContext.resume();
 
-pcmNode.port.onmessage = (ev) => {
-    const samples = ev.data; // Float32Array
-    update_audio(samples);   // Rust bekommt Samples
-    //console.log("update_audio");
-};
+    pcmNode.port.onmessage = (ev) => {
+        const samples = ev.data; // Float32Array
+        update_audio(samples);   // Rust bekommt Samples
+        //console.log("update_audio");
+    };
+}
+setupAudio().catch(err => console.warn("Audio nicht verfügbar:", err));
+// Browser erlauben Audio oft erst nach einer Benutzeraktion
+const resumeAudio = () => { if (audioContext.state !== "running") audioContext.resume(); };
+window.addEventListener("pointerdown", resumeAudio);
+window.addEventListener("keydown", resumeAudio);
 
 
 
