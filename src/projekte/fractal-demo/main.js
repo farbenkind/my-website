@@ -1,3 +1,5 @@
+import { createFractalRenderer } from "./fractal-renderer.js";
+
 let dbg = false;
 
 const pi = Math.PI;
@@ -51,261 +53,15 @@ context.configure({
 
 
 ///////// /// FractalParams - uniforms
-const fractalParams = new Float32Array([
-    -0.5,  // centerX
-    0.0,   // centerY
-    3.0,   // zoom
-    1000.0, // maxIter
-]);
-
-const fractalParamsBuffer = device.createBuffer({
-    size: 32, // 4 floats à 4 bytes
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-});
-device.queue.writeBuffer(fractalParamsBuffer, 0, fractalParams);
-
-const cmSize = 1024;
-
-const CMAP_Texture = device.createTexture({
-    label: "ColorMap Texture",
-    size: [cmSize, 2],
-    format: "rgba8unorm",
-    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-});
-
-
-canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-
-    const zoomFactor = 1.0 + e.deltaY * 0.001;
-    //document.getElementById("debug").textContent = zoomFactor.toFixed(4);
-    fractalParams[2] *= zoomFactor; // fractalParams.z
-
-    device.queue.writeBuffer(fractalParamsBuffer, 0, fractalParams);
-    runCompute(); // Compute neu ausführen
-});
-let isDown = false;
-let lastX = 0;
-let lastY = 0;
-
-canvas.addEventListener("mousedown", (e) => {
-    isDown = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-});
-
-canvas.addEventListener("mouseup", () => {
-    isDown = false;
-});
-
-canvas.addEventListener("mousemove", (e) => {
-    if (!isDown) return;
-
-    const dx = (e.clientX - lastX) / canvas.width;
-    const dy = (e.clientY - lastY) / canvas.height;
-
-    lastX = e.clientX;
-    lastY = e.clientY;
-
-    // Pan hängt vom Zoom ab → wichtig!
-    fractalParams[0] -= dx * fractalParams[2]; // centerX
-    fractalParams[1] += dy * fractalParams[2]; // centerY
-
-    device.queue.writeBuffer(fractalParamsBuffer, 0, fractalParams);
-    runCompute();
-});
-
-
-
+const fractalRenderer = createFractalRenderer({ canvas, context, device, format });
+const { cmSize, colormapTexture: CMAP_Texture } = fractalRenderer;
 
 
 //////////////////////////////////////////////////////////////////
 // FractalShader
 //////////////////////////////////////////////////////////////////
 
-const shaderModule = device.createShaderModule({
-    code: /*wgsl*/ `
-  struct VSOut {
-    @builtin(position) pos : vec4<f32>,
-    @location(0) uv : vec2<f32>,
-};
-
-struct Params {
-    center: vec2<f32>,
-    zoom : f32,
-    maxIter : f32,
-};
-
-
-@vertex
-fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
-    let pos = array<vec2<f32>, 3>(
-        vec2<f32>(-3, -1),
-        vec2<f32>(1, -1),
-        vec2<f32>(1.0,  3)
-    );
-
-    let p = pos[idx];
-    let uv = (p + vec2(1.0, 1.0)) * 0.5;
-
-    var out : VSOut;
-    out.pos = vec4<f32>(p, 0.0, 1.0);
-    out.uv  = uv;
-    return out;
-}
-
-@group(0) @binding(0)
-var fractalTex : texture_2d<f32>;
-@group(0) @binding(1)
-var fractalSampler : sampler;
-
-@fragment
-fn fs_main(@location(0) uv: vec2<f32>)
-    -> @location(0) vec4<f32> {
-
-    return textureSample(fractalTex, fractalSampler, uv);
-}
-
-@group(1) @binding(0)
-var outputTex : texture_storage_2d<rgba8unorm, write>;
-
-@group(1) @binding(2)
-var paletteTex : texture_2d<f32>;
-
-
-@group(1) @binding(1)
-var<uniform> params : Params; 
-// params = (center.xy, zoom, maxIter, time)
-
-@compute @workgroup_size(8, 8)
-fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {
-    let size = textureDimensions(outputTex);
-    if (gid.x >= size.x || gid.y >= size.y) {
-        return;
-    }
-
-    let uv = vec2<f32>(
-        f32(gid.x) / f32(size.x),
-        f32(gid.y) / f32(size.y)
-    );
-
-    let c = vec2<f32>(
-        params.center.x + (uv.x - 0.5) * params.zoom,
-        params.center.y + (uv.y - 0.5) * params.zoom
-    );
-
-    var z = vec2<f32>(0.0, 0.0);
-    var iter : u32 = 0u;
-
-    var diver :f32 = 0.0;
-    loop {
-        if (iter >= u32(params.maxIter)) { diver = 1.0; break; }
-        if (dot(z, z) > 4.0) {break; }
-
-        let x = z.x*z.x - z.y*z.y + c.x;
-        let y = 2.0*z.x*z.y + c.y;
-        z = vec2<f32>(x, y);
-
-        iter = iter + 1u;
-    }
-
-    let idx = clamp(f32(iter) / params.maxIter, 0.0, 1.0);
-    let px = i32(idx * 1023.0);
-
-    var color = textureLoad(paletteTex, vec2<i32>(px, 0), 0);
-
-    if (diver > 0.1) {
-        color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    }
-    textureStore(outputTex, vec2<i32>(i32(gid.x), i32(gid.y)), color);
-} 
-  `
-});
-
-
-/////////////////////////
-const computePipeline = device.createComputePipeline({
-    layout: "auto",
-    compute: {
-        module: shaderModule,
-        entryPoint: "cs_main",
-    },
-});
-///////////////////////
-const width = canvas.width;
-const height = canvas.height;
-
-const fractalTexture = device.createTexture({
-    size: { width, height },
-    format: "rgba8unorm",
-    usage:
-        GPUTextureUsage.STORAGE_BINDING |
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.RENDER_ATTACHMENT,
-});
-
-const fractalView = fractalTexture.createView();
-/////////////////////
-// z.B. Startwerte:
-
-//////////////////
-const sampler = device.createSampler({
-    magFilter: "linear",
-    minFilter: "linear",
-});
-/////////////////////
-const fractalRenderPipeline = device.createRenderPipeline({
-    layout: "auto",
-    vertex: { module: shaderModule, entryPoint: "vs_main", buffers: [] },
-    fragment: { module: shaderModule, entryPoint: "fs_main", targets: [{ format }] }
-});
-//////////////////
-const fractalRenderBindGroup = device.createBindGroup({
-    layout: fractalRenderPipeline.getBindGroupLayout(0),
-    entries: [
-        { binding: 0, resource: fractalView },
-        { binding: 1, resource: sampler },
-    ],
-});
-
-
-////////////////////////
-const computeBindGroup = device.createBindGroup({
-    layout: computePipeline.getBindGroupLayout(1),
-    entries: [
-        { binding: 0, resource: fractalView },
-        { binding: 1, resource: { buffer: fractalParamsBuffer } },
-        { binding: 2, resource: CMAP_Texture.createView() },
-    ],
-});
-/////////////////////
-
-const commandEncoder = device.createCommandEncoder();
-
-const pass = commandEncoder.beginComputePass();
-pass.setPipeline(computePipeline);
-pass.setBindGroup(1, computeBindGroup);
-
-const workgroupSizeX = 8;
-const workgroupSizeY = 8;
-
-const dispatchX = Math.ceil(width / workgroupSizeX);
-const dispatchY = Math.ceil(height / workgroupSizeY);
-
-pass.dispatchWorkgroups(dispatchX, dispatchY);
-pass.end();
-
-device.queue.submit([commandEncoder.finish()]);
-
-function runCompute() {
-    const encoder = device.createCommandEncoder();
-    const pass = encoder.beginComputePass();
-    pass.setPipeline(computePipeline);
-    pass.setBindGroup(1, computeBindGroup);
-    pass.dispatchWorkgroups(dispatchX, dispatchY);
-    pass.end();
-    device.queue.submit([encoder.finish()]);
-}
+// Fractal rendering, GPU resources, and canvas navigation live in fractal-renderer.js.
 
 
 
@@ -1616,7 +1372,7 @@ function updateCMEditor() {
     runCMComputePass();
     renderCMPreview();
     renderEditorAACurve();
-    runCompute();
+    fractalRenderer.runCompute();
 
 }
 
@@ -1625,42 +1381,36 @@ function updateCMEditor() {
 
 import init, { update_audio, get_beats } from "./modcore.js";
 
-await init(); // einmalig
+async function startAudioInput() {
+    await init();
 
+    const audioContext = new AudioContext();
+    await audioContext.audioWorklet.addModule("pcm-processor.js");
 
-const audioContext = new AudioContext();
-await audioContext.audioWorklet.addModule("pcm-processor.js");
+    const pcmNode = new AudioWorkletNode(audioContext, "pcm-proc");
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mic = audioContext.createMediaStreamSource(stream);
+    mic.connect(pcmNode);
+    pcmNode.connect(audioContext.destination);
 
-const pcmNode = new AudioWorkletNode(audioContext, "pcm-proc");
-const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-const mic = audioContext.createMediaStreamSource(stream);
-mic.connect(pcmNode);
-pcmNode.connect(audioContext.destination); // optional
+    pcmNode.port.onmessage = (ev) => {
+        update_audio(ev.data);
+    };
 
-pcmNode.port.onmessage = (ev) => {
-    const samples = ev.data; // Float32Array
-    update_audio(samples);   // Rust bekommt Samples
-    //console.log("update_audio");
-};
+    setInterval(() => {
+        const { bass, mid, tre } = get_beats();
+        window.bassBeat = bass;
+        window.midBeat = mid;
+        window.treBeat = tre;
 
+        updateCMEditor();
+        dbg = false;
+    }, 25);
+}
 
-
-setInterval(() => {
-
-
-    // 2. Beats aus Rust holen
-    const beats = get_beats();
-    const { bass, mid, tre } = beats;
-
-
-    // 3. In dein Fraktal/Mod‑System einspeisen
-    window.bassBeat = bass;
-    window.midBeat = mid;
-    window.treBeat = tre;
-
-    updateCMEditor();
-    dbg = false;
-}, 25);
+startAudioInput().catch((error) => {
+    console.error("Audio input could not be started:", error);
+});
 
 
 ///////////////////////////////////////////////////////////
@@ -1781,16 +1531,17 @@ function deserializeKnobs(data) {
 }
 //          1. Preset‑Struktur (sauber & cloud‑ready)
 function buildPreset(name) {
+    const fractalView = fractalRenderer.getView();
     return {
         name,
         created: Date.now(),
         cmParams: packCMParams(),
         knobs: serializeKnobs(knobs),
         fractalParams: {
-            centerX: fractalParams[0],
-            centerY: fractalParams[1],
-            zoom: fractalParams[2],
-            iter: fractalParams[3]
+            centerX: fractalView.centerX,
+            centerY: fractalView.centerY,
+            zoom: fractalView.zoom,
+            iter: fractalView.maxIter,
         },
         audioReact: {
             bass: window.bassBeat,
@@ -1877,12 +1628,12 @@ function openPresetLoadPopup() {
 //          8. Preset anwenden
 function applyPreset(preset) {
     // Fractal
-    fractalParams[0] = preset.fractalParams.centerX;
-    fractalParams[1] = preset.fractalParams.centerY;
-    fractalParams[2] = preset.fractalParams.zoom;
-    fractalParams[3] = preset.fractalParams.iter;
-
-    device.queue.writeBuffer(fractalParamsBuffer, 0, fractalParams);
+    fractalRenderer.setView({
+        centerX: preset.fractalParams.centerX,
+        centerY: preset.fractalParams.centerY,
+        zoom: preset.fractalParams.zoom,
+        maxIter: preset.fractalParams.iter,
+    });
 
     // CM Editor
     //Object.assign(knobs, preset.knobs);
@@ -1938,50 +1689,18 @@ setInterval(() => {
 }, 25); // 40 Hz
 */
 
-function renderFractal() {
-    const encoder = device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
-        colorAttachments: [{
-            view: context.getCurrentTexture().createView(),
-            loadOp: "clear",
-            storeOp: "store",
-            clearValue: { r: 1, g: 0, b: 0, a: 1 }
-        }]
-    });
-
-    pass.setPipeline(fractalRenderPipeline);
-    pass.setBindGroup(0, fractalRenderBindGroup);
-    pass.draw(3);
-    pass.end();
-
-    device.queue.submit([encoder.finish()]);
-}
-
-
 function frame() {
-    renderFractal();        // smooth 60–144 Hz
+    fractalRenderer.render();        // smooth 60–144 Hz
     requestAnimationFrame(frame);
 }
 function saveView() {
-    const view = {
-        centerX: fractalParams[0],
-        centerY: fractalParams[1],
-        zoom: fractalParams[2],
-        maxIter: fractalParams[3]
-    };
-    localStorage.setItem("fractalView", JSON.stringify(view));
+    localStorage.setItem("fractalView", JSON.stringify(fractalRenderer.getView()));
 }
 function loadView() {
     const view = JSON.parse(localStorage.getItem("fractalView"));
     if (!view) return;
 
-    fractalParams[0] = view.centerX;
-    fractalParams[1] = view.centerY;
-    fractalParams[2] = view.zoom;
-    fractalParams[3] = 1000;
-
-    device.queue.writeBuffer(fractalParamsBuffer, 0, fractalParams);
-    runCompute();
+    fractalRenderer.setView({ ...view, maxIter: 1000 });
 }
 
 const editorOverlay = document.getElementById("cmOverlay");
@@ -2029,8 +1748,8 @@ console.log("cmParams initial:", packCMParams());
 runCMComputePass();
 renderCMPreview();
 renderEditorAACurve();
-runCompute();      // Fraktal einmal initial berechnen
-renderFractal();   // und anzeigen
+fractalRenderer.runCompute();      // Fraktal einmal initial berechnen
+fractalRenderer.render();          // und anzeigen
 
 loadView();
 //overlay.classList.toggle("hidden");

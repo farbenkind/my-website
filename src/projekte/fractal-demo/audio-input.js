@@ -1,0 +1,22 @@
+import init, { update_audio, get_beats } from "./modcore.js";
+
+export async function startAudioInput(onBeatUpdate) {
+    await init();
+
+    const audioContext = new AudioContext();
+    await audioContext.audioWorklet.addModule("pcm-processor.js");
+
+    const pcmNode = new AudioWorkletNode(audioContext, "pcm-proc");
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mic = audioContext.createMediaStreamSource(stream);
+    mic.connect(pcmNode);
+    pcmNode.connect(audioContext.destination);
+
+    pcmNode.port.onmessage = (event) => {
+        update_audio(event.data);
+    };
+
+    setInterval(() => {
+        onBeatUpdate(get_beats());
+    }, 25);
+}
