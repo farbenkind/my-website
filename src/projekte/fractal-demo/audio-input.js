@@ -4,7 +4,7 @@ export async function startAudioInput(onBeatUpdate) {
     await init();
 
     const audioContext = new AudioContext();
-    await audioContext.audioWorklet.addModule("pcm-processor.js");
+    await audioContext.audioWorklet.addModule(new URL("./pcm-processor.js", import.meta.url));
 
     const pcmNode = new AudioWorkletNode(audioContext, "pcm-proc");
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
