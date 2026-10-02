@@ -12,6 +12,12 @@ export async function startAudioInput(onBeatUpdate) {
     mic.connect(pcmNode);
     pcmNode.connect(audioContext.destination);
 
+    // Browser starten den AudioContext oft erst nach einer Benutzeraktion
+    const resume = () => { if (audioContext.state !== "running") audioContext.resume(); };
+    resume();
+    window.addEventListener("pointerdown", resume);
+    window.addEventListener("keydown", resume);
+
     pcmNode.port.onmessage = (event) => {
         update_audio(event.data);
     };

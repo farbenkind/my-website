@@ -1,4 +1,5 @@
 import { createFractalRenderer } from "./fractal-renderer.js";
+import { startAudioInput } from "./audio-input.js";
 
 let dbg = false;
 
@@ -1379,36 +1380,14 @@ function updateCMEditor() {
 
 
 
-import init, { update_audio, get_beats } from "./modcore.js";
-
-async function startAudioInput() {
-    await init();
-
-    const audioContext = new AudioContext();
-    await audioContext.audioWorklet.addModule("pcm-processor.js");
-
-    const pcmNode = new AudioWorkletNode(audioContext, "pcm-proc");
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mic = audioContext.createMediaStreamSource(stream);
-    mic.connect(pcmNode);
-    pcmNode.connect(audioContext.destination);
-
-    pcmNode.port.onmessage = (ev) => {
-        update_audio(ev.data);
-    };
-
-    setInterval(() => {
-        const { bass, mid, tre } = get_beats();
-        window.bassBeat = bass;
-        window.midBeat = mid;
-        window.treBeat = tre;
-
-        updateCMEditor();
-        dbg = false;
-    }, 25);
-}
-
-startAudioInput().catch((error) => {
+startAudioInput(({ bass, mid, tre }) => {
+    window.bassBeat = bass;
+    window.midBeat = mid;
+    window.treBeat = tre;
+    log("bassBeat", bass);
+    updateCMEditor();
+    dbg = false;
+}).catch((error) => {
     console.error("Audio input could not be started:", error);
 });
 
